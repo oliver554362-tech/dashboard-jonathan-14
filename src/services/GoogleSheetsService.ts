@@ -14,6 +14,8 @@ export interface SectionSpreadsheets {
   [sectionId: string]: SpreadsheetConfig[];
 }
 
+const DEBUG = false;
+
 export class GoogleSheetsService {
   // Configuração principal da planilha - todas as seções apontam para abas diferentes da mesma planilha
   private static MAIN_SPREADSHEET_ID = '1-8rZ9MMXQ4dbYY6HYg04Fl0EwmqRye5Mc6fs3jbg9BM';
@@ -56,7 +58,7 @@ export class GoogleSheetsService {
 
   // Inicializar conexões persistentes para todas as seções
   private static initializePersistentConnections() {
-    console.log('[GoogleSheets] Inicializando conexões persistentes...');
+    DEBUG && console.log('[GoogleSheets] Inicializando conexões persistentes...');
     
     // Configurar todas as seções automaticamente
     Object.entries(this.SECTION_MAPPINGS).forEach(([sectionId, config]) => {
@@ -71,7 +73,7 @@ export class GoogleSheetsService {
     // Restaurar configurações customizadas do localStorage se existirem
     this.restoreCustomConfigurations();
     
-    console.log('[GoogleSheets] Conexões persistentes configuradas:', Object.keys(this.sectionSpreadsheets));
+    DEBUG && console.log('[GoogleSheets] Conexões persistentes configuradas:', Object.keys(this.sectionSpreadsheets));
   }
 
   // Restaurar configurações customizadas salvas no localStorage
@@ -85,10 +87,10 @@ export class GoogleSheetsService {
             this.sectionSpreadsheets[sectionId] = configs;
           }
         });
-        console.log('[GoogleSheets] Configurações customizadas restauradas');
+        DEBUG && console.log('[GoogleSheets] Configurações customizadas restauradas');
       }
     } catch (error) {
-      console.warn('[GoogleSheets] Erro ao restaurar configurações customizadas:', error);
+      DEBUG && console.warn('[GoogleSheets] Erro ao restaurar configurações customizadas:', error);
     }
   }
 
@@ -111,7 +113,7 @@ export class GoogleSheetsService {
       
       localStorage.setItem('googleSheets_sectionConfigs', JSON.stringify(customConfigs));
     } catch (error) {
-      console.warn('[GoogleSheets] Erro ao salvar configurações:', error);
+      DEBUG && console.warn('[GoogleSheets] Erro ao salvar configurações:', error);
     }
   }
 
@@ -123,7 +125,7 @@ export class GoogleSheetsService {
       const cachedPayload = this.loadCache(sectionId);
       // Se não há configuração, tentar reconectar automaticamente
       if (spreadsheets.length === 0) {
-        console.log(`[GoogleSheets] Seção ${sectionId} sem configuração. Tentando reconexão automática...`);
+        DEBUG && console.log(`[GoogleSheets] Seção ${sectionId} sem configuração. Tentando reconexão automática...`);
         
         const mapping = this.SECTION_MAPPINGS[sectionId as keyof typeof this.SECTION_MAPPINGS];
         if (mapping) {
@@ -136,7 +138,7 @@ export class GoogleSheetsService {
           spreadsheets = this.sectionSpreadsheets[sectionId];
           reconnected = true;
           this.saveConfigurations();
-          console.log(`[GoogleSheets] Reconexão automática realizada para ${sectionId}`);
+          DEBUG && console.log(`[GoogleSheets] Reconexão automática realizada para ${sectionId}`);
         } else {
           return { success: false, error: `Seção ${sectionId} não encontrada no mapeamento de abas` };
         }
@@ -144,10 +146,10 @@ export class GoogleSheetsService {
 
       const allData: SectionData[] = [];
       
-      console.log(`Buscando dados de ${spreadsheets.length} planilha(s) da seção ${sectionId}...`);
+      DEBUG && console.log(`Buscando dados de ${spreadsheets.length} planilha(s) da seção ${sectionId}...`);
       
       for (const spreadsheet of spreadsheets) {
-        console.log(`Sincronizando planilha: ${spreadsheet.name}...`);
+        DEBUG && console.log(`Sincronizando planilha: ${spreadsheet.name}...`);
         
         const response = await fetch(
           `https://docs.google.com/spreadsheets/d/${spreadsheet.id}/export?format=csv&gid=${spreadsheet.gid || 0}`,
@@ -157,14 +159,14 @@ export class GoogleSheetsService {
         );
 
         if (!response.ok) {
-          console.warn(`Erro ao buscar planilha ${spreadsheet.name}: HTTP ${response.status} - ${response.statusText}. URL: https://docs.google.com/spreadsheets/d/${spreadsheet.id}/export?format=csv&gid=${spreadsheet.gid || 0}`);
+          DEBUG && console.warn(`Erro ao buscar planilha ${spreadsheet.name}: HTTP ${response.status} - ${response.statusText}. URL: https://docs.google.com/spreadsheets/d/${spreadsheet.id}/export?format=csv&gid=${spreadsheet.gid || 0}`);
           continue;
         }
 
         const csvText = await response.text();
         
         if (!csvText || csvText.trim() === '') {
-          console.warn(`Planilha ${spreadsheet.name} está vazia`);
+          DEBUG && console.warn(`Planilha ${spreadsheet.name} está vazia`);
           continue;
         }
 
@@ -177,18 +179,18 @@ export class GoogleSheetsService {
         }
         
         if (lines.length === 0) {
-          console.warn(`Planilha ${spreadsheet.name} não possui dados válidos`);
+          DEBUG && console.warn(`Planilha ${spreadsheet.name} não possui dados válidos`);
           continue;
         }
 
-        console.log(`Total de linhas no CSV (incluindo header): ${lines.length}`);
+        DEBUG && console.log(`Total de linhas no CSV (incluindo header): ${lines.length}`);
 
         // A primeira linha contém os cabeçalhos
         const headers = lines[0].split(',').map(h => h.replace(/"/g, '').trim());
         const dataLines = lines.slice(1);
         
-        console.log(`Cabeçalhos encontrados: ${headers.join(', ')}`);
-        console.log(`Linhas de dados para processar: ${dataLines.length}`);
+        DEBUG && console.log(`Cabeçalhos encontrados: ${headers.join(', ')}`);
+        DEBUG && console.log(`Linhas de dados para processar: ${dataLines.length}`);
 
         // Mapeia os dados para o formato esperado com melhor parsing de CSV
         const allRows = dataLines.map((line, index) => {
@@ -204,7 +206,7 @@ export class GoogleSheetsService {
           return { data: rowData as SectionData, lineNumber: index + 2 };
         });
 
-        console.log(`Exemplo de dados parseados: ${JSON.stringify(allRows[0]?.data || {}, null, 2)}`);
+        DEBUG && console.log(`Exemplo de dados parseados: ${JSON.stringify(allRows[0]?.data || {}, null, 2)}`);
 
         // Filtro mais permissivo - qualquer linha que tenha pelo menos 2 campos preenchidos
         const sectionData = allRows.filter(({ data, lineNumber }) => {
@@ -215,20 +217,20 @@ export class GoogleSheetsService {
           const isValid = fieldValues.length >= 2; // Pelo menos 2 campos preenchidos
           
           if (!isValid) {
-            console.log(`Linha ${lineNumber} filtrada (muito vazia): ${JSON.stringify(data).substring(0, 150)}...`);
+            DEBUG && console.log(`Linha ${lineNumber} filtrada (muito vazia): ${JSON.stringify(data).substring(0, 150)}...`);
           }
           
           return isValid;
         }).map(item => item.data);
 
         allData.push(...sectionData);
-        console.log(`${sectionData.length} registros válidos carregados da planilha ${spreadsheet.name}`);
+        DEBUG && console.log(`${sectionData.length} registros válidos carregados da planilha ${spreadsheet.name}`);
       }
 
       if (allData.length === 0) {
         // Fallback: usar cache recente se existir
         if (cachedPayload && Date.now() - cachedPayload.timestamp <= this.CACHE_TTL_MS) {
-          console.warn(`[GoogleSheets] Sem novos dados para a seção ${sectionId}. Usando dados em cache (${new Date(cachedPayload.timestamp).toLocaleString()}).`);
+          DEBUG && console.warn(`[GoogleSheets] Sem novos dados para a seção ${sectionId}. Usando dados em cache (${new Date(cachedPayload.timestamp).toLocaleString()}).`);
           return { success: true, data: cachedPayload.data, reconnected, fromCache: true };
         }
         return { success: false, error: `Planilha sem registros no momento` };
@@ -237,7 +239,7 @@ export class GoogleSheetsService {
       // Remover duplicatas baseado em uma chave única
       const uniqueData = this.removeDuplicates(allData);
       
-      console.log(`Total: ${allData.length} registros carregados, ${uniqueData.length} únicos da seção ${sectionId}`);
+      DEBUG && console.log(`Total: ${allData.length} registros carregados, ${uniqueData.length} únicos da seção ${sectionId}`);
       // Salvar cache
       this.saveCache(sectionId, uniqueData);
       return { success: true, data: uniqueData, reconnected, fromCache: false };
@@ -263,7 +265,7 @@ export class GoogleSheetsService {
     // Salvar configuração persistente
     this.saveConfigurations();
     
-    console.log(`Planilha ${spreadsheet.name} adicionada à seção ${sectionId} e configuração salva`);
+    DEBUG && console.log(`Planilha ${spreadsheet.name} adicionada à seção ${sectionId} e configuração salva`);
   }
 
   // Reconectar uma seção específica
@@ -277,7 +279,7 @@ export class GoogleSheetsService {
         sectionId
       }];
       this.saveConfigurations();
-      console.log(`[GoogleSheets] Seção ${sectionId} reconectada à aba ${mapping.name}`);
+      DEBUG && console.log(`[GoogleSheets] Seção ${sectionId} reconectada à aba ${mapping.name}`);
       return true;
     }
     return false;
@@ -313,7 +315,7 @@ export class GoogleSheetsService {
       );
       // Salvar configuração após remoção
       this.saveConfigurations();
-      console.log(`Planilha ${spreadsheetId} removida da seção ${sectionId}`);
+      DEBUG && console.log(`Planilha ${spreadsheetId} removida da seção ${sectionId}`);
     }
   }
 

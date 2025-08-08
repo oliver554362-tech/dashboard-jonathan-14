@@ -1,4 +1,5 @@
 import { GoogleSheetsService } from './GoogleSheetsService';
+const DEBUG = false;
 
 class AutoSyncService {
   private syncIntervals: Map<string, NodeJS.Timeout> = new Map();
@@ -20,7 +21,7 @@ class AutoSyncService {
       if (!this.isAutoSyncEnabled) return;
       
       try {
-        console.log(`[AutoSync] Sincronizando seção: ${sectionId}`);
+        DEBUG && console.log(`[AutoSync] Sincronizando seção: ${sectionId}`);
         const result = await GoogleSheetsService.fetchSectionData(sectionId);
         
         if (result.success && result.data) {
@@ -32,18 +33,18 @@ class AutoSyncService {
           
           // Informar sobre reconexão se ocorreu
           if (result.reconnected) {
-            console.log(`[AutoSync] ⚡ Seção ${sectionId} foi reconectada automaticamente`);
+            DEBUG && console.log(`[AutoSync] ⚡ Seção ${sectionId} foi reconectada automaticamente`);
           }
           
-          console.log(`[AutoSync] Seção ${sectionId} sincronizada com sucesso. ${result.data.length} registros encontrados.`);
+          DEBUG && console.log(`[AutoSync] Seção ${sectionId} sincronizada com sucesso. ${result.data.length} registros encontrados.`);
         } else {
           console.error(`[AutoSync] Erro ao sincronizar seção ${sectionId}:`, result.error);
           
           // Tentar reconectar em caso de erro
-          console.log(`[AutoSync] Tentando reconectar seção ${sectionId}...`);
+          DEBUG && console.log(`[AutoSync] Tentando reconectar seção ${sectionId}...`);
           const reconnected = GoogleSheetsService.reconnectSection(sectionId);
           if (reconnected) {
-            console.log(`[AutoSync] Seção ${sectionId} reconectada. Tentando sincronizar novamente...`);
+            DEBUG && console.log(`[AutoSync] Seção ${sectionId} reconectada. Tentando sincronizar novamente...`);
             // Tentar sincronizar novamente após reconexão
             try {
               const retryResult = await GoogleSheetsService.fetchSectionData(sectionId);
@@ -52,7 +53,7 @@ class AutoSyncService {
                 if (callback) {
                   callback(retryResult.data);
                 }
-                console.log(`[AutoSync] Seção ${sectionId} sincronizada após reconexão. ${retryResult.data.length} registros encontrados.`);
+                DEBUG && console.log(`[AutoSync] Seção ${sectionId} sincronizada após reconexão. ${retryResult.data.length} registros encontrados.`);
               }
             } catch (retryError) {
               console.error(`[AutoSync] Erro na tentativa de sincronização após reconexão de ${sectionId}:`, retryError);
@@ -66,7 +67,7 @@ class AutoSyncService {
 
     this.syncIntervals.set(sectionId, intervalId);
     
-    console.log(`[AutoSync] Sincronização automática iniciada para ${sectionId} (a cada ${intervalMinutes} minutos)`);
+    DEBUG && console.log(`[AutoSync] Sincronização automática iniciada para ${sectionId} (a cada ${intervalMinutes} minutos)`);
   }
 
   // Parar sincronização automática para uma seção
@@ -76,7 +77,7 @@ class AutoSyncService {
       clearInterval(intervalId);
       this.syncIntervals.delete(sectionId);
       this.syncCallbacks.delete(sectionId);
-      console.log(`[AutoSync] Sincronização automática parada para ${sectionId}`);
+      DEBUG && console.log(`[AutoSync] Sincronização automática parada para ${sectionId}`);
     }
   }
 
@@ -84,7 +85,7 @@ class AutoSyncService {
   stopAllAutoSync() {
     this.syncIntervals.forEach((intervalId, sectionId) => {
       clearInterval(intervalId);
-      console.log(`[AutoSync] Sincronização automática parada para ${sectionId}`);
+      DEBUG && console.log(`[AutoSync] Sincronização automática parada para ${sectionId}`);
     });
     
     this.syncIntervals.clear();
@@ -94,7 +95,7 @@ class AutoSyncService {
   // Habilitar/desabilitar sincronização automática
   setAutoSyncEnabled(enabled: boolean) {
     this.isAutoSyncEnabled = enabled;
-    console.log(`[AutoSync] Sincronização automática ${enabled ? 'habilitada' : 'desabilitada'}`);
+    DEBUG && console.log(`[AutoSync] Sincronização automática ${enabled ? 'habilitada' : 'desabilitada'}`);
   }
 
   // Verificar se uma seção tem sincronização ativa
@@ -136,13 +137,13 @@ class AutoSyncService {
       }
     });
     
-    console.log(`[AutoSync] Inicialização completa para ${availableSections.length} seções`);
+    DEBUG && console.log(`[AutoSync] Inicialização completa para ${availableSections.length} seções`);
   }
 
   // Sincronização manual forçada com tentativa de reconexão
   async forceSyncSection(sectionId: string): Promise<any[]> {
     try {
-      console.log(`[AutoSync] Sincronização manual forçada para ${sectionId}`);
+      DEBUG && console.log(`[AutoSync] Sincronização manual forçada para ${sectionId}`);
       const result = await GoogleSheetsService.fetchSectionData(sectionId);
       
       if (result.success && result.data) {
@@ -153,16 +154,16 @@ class AutoSyncService {
         }
         
         if (result.reconnected) {
-          console.log(`[AutoSync] ⚡ Seção ${sectionId} foi reconectada durante sincronização manual`);
+          DEBUG && console.log(`[AutoSync] ⚡ Seção ${sectionId} foi reconectada durante sincronização manual`);
         }
         
-        console.log(`[AutoSync] Sincronização manual concluída para ${sectionId}. ${result.data.length} registros encontrados.`);
+        DEBUG && console.log(`[AutoSync] Sincronização manual concluída para ${sectionId}. ${result.data.length} registros encontrados.`);
         return result.data;
       } else {
         console.error(`[AutoSync] Erro na sincronização manual de ${sectionId}:`, result.error);
         
         // Tentar reconectar se houve erro
-        console.log(`[AutoSync] Tentando reconectar ${sectionId} antes de falhar...`);
+        DEBUG && console.log(`[AutoSync] Tentando reconectar ${sectionId} antes de falhar...`);
         const reconnected = GoogleSheetsService.reconnectSection(sectionId);
         if (reconnected) {
           const retryResult = await GoogleSheetsService.fetchSectionData(sectionId);
@@ -171,7 +172,7 @@ class AutoSyncService {
             if (callback) {
               callback(retryResult.data);
             }
-            console.log(`[AutoSync] Sincronização manual bem-sucedida após reconexão de ${sectionId}. ${retryResult.data.length} registros encontrados.`);
+            DEBUG && console.log(`[AutoSync] Sincronização manual bem-sucedida após reconexão de ${sectionId}. ${retryResult.data.length} registros encontrados.`);
             return retryResult.data;
           }
         }

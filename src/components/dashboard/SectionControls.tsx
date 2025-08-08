@@ -51,7 +51,8 @@ export function SectionControls({
     // Abrir a primeira planilha configurada
     const firstSpreadsheet = spreadsheets[0];
     const url = `https://docs.google.com/spreadsheets/d/${firstSpreadsheet.id}/edit#gid=${firstSpreadsheet.gid || 0}`;
-    window.open(url, '_blank');
+    const newWindow = window.open(url, '_blank', 'noopener,noreferrer');
+    if (newWindow) newWindow.opener = null;
     onOpen(sectionId);
   };
 
