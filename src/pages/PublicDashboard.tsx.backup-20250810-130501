@@ -1,0 +1,302 @@
+import { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { 
+  Eye, 
+  Shield, 
+  Search, 
+  Filter, 
+  Calendar,
+  TrendingUp,
+  Database,
+  Users,
+  Activity,
+  AlertTriangle,
+  RefreshCw
+} from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { GoogleSheetsService } from "@/services/GoogleSheetsService";
+import { toast } from "sonner";
+import PublicDataTable from "@/components/dashboard/PublicDataTable";
+import PublicKPIs from "@/components/dashboard/PublicKPIs";
+import PublicCharts from "@/components/dashboard/PublicCharts";
+
+export default function PublicDashboard() {
+  const navigate = useNavigate();
+  const [data, setData] = useState<any[]>([]);
+  const [filteredData, setFilteredData] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [dateRange, setDateRange] = useState({ start: "", end: "" });
+  const [lastUpdate, setLastUpdate] = useState<string>("");
+  const [connectionError, setConnectionError] = useState<string>("");
+
+  useEffect(() => {
+    loadAllData();
+  }, []);
+
+  // Auto refresh every 1 minute
+  useEffect(() => {
+    const id = setInterval(() => {
+      loadAllData();
+    }, 60 * 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    // Aplicar filtros
+    let filtered = data;
+
+    // Filtro de busca
+    if (searchTerm) {
+      filtered = filtered.filter(item =>
+        Object.values(item).some(value =>
+          String(value).toLowerCase().includes(searchTerm.toLowerCase())
+        )
+      );
+    }
+
+    // Filtro de data
+    if (dateRange.start || dateRange.end) {
+      filtered = filtered.filter(item => {
+        const itemDate = item.Data || item['Data da análise'] || '';
+        if (!itemDate) return false;
+
+        const date = new Date(itemDate);
+        const start = dateRange.start ? new Date(dateRange.start) : new Date('2000-01-01');
+        const end = dateRange.end ? new Date(dateRange.end) : new Date('2100-12-31');
+
+        return date >= start && date <= end;
+      });
+    }
+
+    setFilteredData(filtered);
+  }, [data, searchTerm, dateRange]);
+
+  const loadAllData = async () => {
+    setIsLoading(true);
+    setConnectionError("");
+    
+    try {
+      const sections = GoogleSheetsService.getAvailableSections();
+      const allData: any[] = [];
+      
+      for (const section of sections) {
+        try {
+          const result = await GoogleSheetsService.fetchSectionData(section);
+          if (result.success && result.data) {
+            // Adicionar identificação da seção aos dados
+            const sectionData = result.data.map(item => ({
+              ...item,
+              _section: section
+            }));
+            allData.push(...sectionData);
+          }
+        } catch (error) {
+          console.warn(`Erro ao carregar seção ${section}:`, error);
+        }
+      }
+
+      if (allData.length === 0) {
+        // Sem registros: não trate como erro de conexão; deixe a UI exibir estado vazio amigável
+        setData([]);
+        setConnectionError("");
+      } else {
+        setData(allData);
+        setConnectionError("");
+        toast.success(`${allData.length} registros carregados com sucesso!`);
+      }
+      
+      setLastUpdate(new Date().toLocaleString());
+      
+    } catch (error) {
+      console.error("Erro ao carregar dados:", error);
+      setConnectionError("Erro ao conectar com as planilhas. Tente novamente mais tarde.");
+      toast.error("Erro ao carregar dados");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleRefresh = () => {
+    loadAllData();
+  };
+
+  const clearFilters = () => {
+    setSearchTerm("");
+    setDateRange({ start: "", end: "" });
+  };
+
+  return (
+    <div className="min-h-screen bg-background">
+      {/* Header */}
+      <header className="border-b bg-card/50 backdrop-blur">
+        <div className="container mx-auto px-4 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
+                <Eye className="w-6 h-6 text-primary-foreground" />
+              </div>
+              <div>
+                <h1 className="text-xl font-semibold">Painel Público</h1>
+                <p className="text-sm text-muted-foreground">
+                  Dashboard de dados em tempo real - Última atualização: {lastUpdate}
+                </p>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <Button 
+                variant="outline" 
+                onClick={handleRefresh}
+                disabled={isLoading}
+                className="gap-2"
+              >
+                <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+                Atualizar
+              </Button>
+              <Button 
+                variant="ghost" 
+                onClick={() => navigate("/login")}
+                className="gap-2"
+              >
+                <Shield className="w-4 h-4" />
+                Área Admin
+              </Button>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <div className="container mx-auto px-4 py-8 space-y-8">
+        
+        {/* Error State */}
+        {connectionError && (
+          <Card className="border-destructive/50 bg-destructive/5">
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3">
+                <AlertTriangle className="w-5 h-5 text-destructive" />
+                <div>
+                  <p className="font-medium text-destructive">Problema de Conexão</p>
+                  <p className="text-sm text-muted-foreground">{connectionError}</p>
+                </div>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={handleRefresh}
+                  className="ml-auto"
+                >
+                  Tentar Novamente
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Filtros */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Filter className="w-5 h-5" />
+              Filtros
+            </CardTitle>
+            <CardDescription>
+              Filtre os dados para encontrar informações específicas
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="md:col-span-2">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+                  <Input
+                    placeholder="Buscar em todos os dados..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+              </div>
+              
+              <div>
+                <Input
+                  type="date"
+                  placeholder="Data inicial"
+                  value={dateRange.start}
+                  onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
+                />
+              </div>
+              
+              <div className="flex gap-2">
+                <Input
+                  type="date"
+                  placeholder="Data final"
+                  value={dateRange.end}
+                  onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
+                />
+                <Button variant="outline" onClick={clearFilters}>
+                  Limpar
+                </Button>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-4 mt-4 text-sm text-muted-foreground">
+              <span>Total: {data.length} registros</span>
+              <Separator orientation="vertical" className="h-4" />
+              <span>Filtrados: {filteredData.length} registros</span>
+              {(searchTerm || dateRange.start || dateRange.end) && (
+                <>
+                  <Separator orientation="vertical" className="h-4" />
+                  <Badge variant="secondary">Filtros ativos</Badge>
+                </>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* KPIs */}
+        {!connectionError && <PublicKPIs data={filteredData} isLoading={isLoading} />}
+
+        {/* Gráficos */}
+        {!connectionError && <PublicCharts data={filteredData} isLoading={isLoading} />}
+
+        {/* Tabela de Dados */}
+        {!connectionError && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Database className="w-5 h-5" />
+                Dados Detalhados
+              </CardTitle>
+              <CardDescription>
+                Visualização completa dos dados carregados das planilhas
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <PublicDataTable 
+                data={filteredData} 
+                isLoading={isLoading}
+                searchTerm={searchTerm}
+                hasBaseData={data.length > 0}
+                filterActive={Boolean(searchTerm || dateRange.start || dateRange.end)}
+              />
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Loading State */}
+        {isLoading && (
+          <div className="flex items-center justify-center py-12">
+            <div className="flex items-center gap-3">
+              <RefreshCw className="w-6 h-6 animate-spin text-primary" />
+              <p className="text-lg">Carregando dados...</p>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
